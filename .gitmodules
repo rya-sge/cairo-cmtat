@@ -1,0 +1,9 @@
+[submodule "CMTAT"]
+	path = CMTAT
+	url = git@github.com:CMTA/CMTAT.git
+[submodule "ERC3643-Cairo"]
+	path = ERC3643-Cairo
+	url = git@github.com:fcroiseaux/ERC3643-Cairo.git
+[submodule "private-CMTAT-aztec"]
+	path = private-CMTAT-aztec
+	url = git@github.com:CMTA/private-CMTAT-aztec.git

@@ -1,5 +1,29 @@
-// SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts for Cairo ^0.17.0
+// SPDX-License-Identifier: MPL-2.0
+// Cairo CMTAT Implementation Library
+
+pub mod interfaces {
+    pub mod icmtat;
+    pub mod engines;
+}
+
+pub mod modules {
+    pub mod access_control;
+    pub mod pause;
+    pub mod enforcement;
+    pub mod erc20_base;
+    pub mod erc20_mint;
+    pub mod erc20_burn;
+    pub mod validation;
+}
+
+pub mod contracts {
+    pub mod standard_cmtat;
+    pub mod debt_cmtat;
+    pub mod allowlist_cmtat;
+    pub mod light_cmtat;
+}
+
+// Legacy simple ERC20 implementation (kept for compatibility)
 #[starknet::contract]
 mod CMTAT_ERC20 {
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
