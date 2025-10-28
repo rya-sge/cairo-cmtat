@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
-// Working CMTAT Implementation compatible with Cairo 2.6.3
+// Debt CMTAT Implementation - For Debt Instruments
 
 use starknet::ContractAddress;
 
 #[starknet::contract]
-mod WorkingCMTAT {
+mod DebtCMTAT {
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
@@ -14,21 +14,17 @@ mod WorkingCMTAT {
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);
 
-    // Mixin implementations
     #[abi(embed_v0)]
     impl ERC20MixinImpl = ERC20Component::ERC20MixinImpl<ContractState>;
     #[abi(embed_v0)]
     impl AccessControlMixinImpl = AccessControlComponent::AccessControlMixinImpl<ContractState>;
-    // Note: SRC5 is already included in AccessControlMixinImpl, no need to embed again
 
-    // Internal implementations
     impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
     impl AccessControlInternalImpl = AccessControlComponent::InternalImpl<ContractState>;
 
-    // Constants for CMTAT roles
     const MINTER_ROLE: felt252 = 'MINTER';
     const BURNER_ROLE: felt252 = 'BURNER';
-    const ENFORCER_ROLE: felt252 = 'ENFORCER';
+    const DEBT_ROLE: felt252 = 'DEBT_ROLE';
 
     #[storage]
     struct Storage {
@@ -38,11 +34,16 @@ mod WorkingCMTAT {
         access_control: AccessControlComponent::Storage,
         #[substorage(v0)]
         src5: SRC5Component::Storage,
-        // CMTAT specific storage
         terms: felt252,
         flag: felt252,
+        // Debt-specific fields
+        isin: ByteArray,
+        maturity_date: u64,
+        interest_rate: u256,
+        par_value: u256,
+        credit_event_occurred: bool,
+        credit_event_type: ByteArray,
         frozen_addresses: LegacyMap<ContractAddress, bool>,
-        frozen_tokens: LegacyMap<ContractAddress, u256>,
     }
 
     #[event]
@@ -54,27 +55,53 @@ mod WorkingCMTAT {
         AccessControlEvent: AccessControlComponent::Event,
         #[flat]
         SRC5Event: SRC5Component::Event,
-        // CMTAT specific events
         TermsSet: TermsSet,
         FlagSet: FlagSet,
+        ISINSet: ISINSet,
+        MaturityDateSet: MaturityDateSet,
+        InterestRateSet: InterestRateSet,
+        ParValueSet: ParValueSet,
+        CreditEventSet: CreditEventSet,
         AddressFrozen: AddressFrozen,
         AddressUnfrozen: AddressUnfrozen,
-        TokensFrozen: TokensFrozen,
-        TokensUnfrozen: TokensUnfrozen,
     }
 
     #[derive(Drop, starknet::Event)]
     struct TermsSet {
-        #[key]
         pub previous_terms: felt252,
         pub new_terms: felt252,
     }
 
     #[derive(Drop, starknet::Event)]
     struct FlagSet {
-        #[key]
         pub previous_flag: felt252,
         pub new_flag: felt252,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ISINSet {
+        pub new_isin: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct MaturityDateSet {
+        pub new_maturity_date: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct InterestRateSet {
+        pub new_interest_rate: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ParValueSet {
+        pub new_par_value: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct CreditEventSet {
+        pub event_type: ByteArray,
+        pub occurred: bool,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -89,29 +116,6 @@ mod WorkingCMTAT {
         pub account: ContractAddress,
     }
 
-    #[derive(Drop, starknet::Event)]
-    struct TokensFrozen {
-        #[key]
-        pub account: ContractAddress,
-        pub amount: u256,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    struct TokensUnfrozen {
-        #[key]
-        pub account: ContractAddress,
-        pub amount: u256,
-    }
-
-    mod Errors {
-        pub const ADDRESS_FROZEN: felt252 = 'CMTAT: address frozen';
-        pub const INSUFFICIENT_BALANCE: felt252 = 'CMTAT: insufficient balance';
-        pub const CALLER_NOT_ADMIN: felt252 = 'CMTAT: caller not admin';
-        pub const CALLER_NOT_MINTER: felt252 = 'CMTAT: caller not minter';
-        pub const CALLER_NOT_BURNER: felt252 = 'CMTAT: caller not burner';
-        pub const CALLER_NOT_ENFORCER: felt252 = 'CMTAT: caller not enforcer';
-    }
-
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -121,30 +125,35 @@ mod WorkingCMTAT {
         initial_supply: u256,
         recipient: ContractAddress,
         terms: felt252,
-        flag: felt252
+        flag: felt252,
+        isin: ByteArray,
+        maturity_date: u64,
+        interest_rate: u256,
+        par_value: u256
     ) {
-        // Initialize components
         self.erc20.initializer(name, symbol);
         self.access_control.initializer();
 
-        // Grant roles to admin
         self.access_control._grant_role(DEFAULT_ADMIN_ROLE, admin);
         self.access_control._grant_role(MINTER_ROLE, admin);
         self.access_control._grant_role(BURNER_ROLE, admin);
-        self.access_control._grant_role(ENFORCER_ROLE, admin);
+        self.access_control._grant_role(DEBT_ROLE, admin);
 
-        // Set CMTAT metadata
         self.terms.write(terms);
         self.flag.write(flag);
+        self.isin.write(isin);
+        self.maturity_date.write(maturity_date);
+        self.interest_rate.write(interest_rate);
+        self.par_value.write(par_value);
+        self.credit_event_occurred.write(false);
 
-        // Mint initial supply
         if initial_supply > 0 {
             self.erc20._mint(recipient, initial_supply);
         }
     }
 
     #[abi(embed_v0)]
-    impl CMTATImpl of super::ICMTAT<ContractState> {
+    impl DebtCMTATImpl of super::IDebtCMTAT<ContractState> {
         fn terms(self: @ContractState) -> felt252 {
             self.terms.read()
         }
@@ -169,24 +178,23 @@ mod WorkingCMTAT {
 
         fn mint(ref self: ContractState, to: ContractAddress, amount: u256) {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.is_frozen(to), Errors::ADDRESS_FROZEN);
+            assert(!self.is_frozen(to), 'Address is frozen');
             self.erc20._mint(to, amount);
         }
 
         fn burn(ref self: ContractState, from: ContractAddress, amount: u256) {
             self.access_control.assert_only_role(BURNER_ROLE);
-            self._check_active_balance(from, amount);
             self.erc20._burn(from, amount);
         }
 
         fn freeze_address(ref self: ContractState, account: ContractAddress) {
-            self.access_control.assert_only_role(ENFORCER_ROLE);
+            self.access_control.assert_only_role(DEBT_ROLE);
             self.frozen_addresses.write(account, true);
             self.emit(AddressFrozen { account });
         }
 
         fn unfreeze_address(ref self: ContractState, account: ContractAddress) {
-            self.access_control.assert_only_role(ENFORCER_ROLE);
+            self.access_control.assert_only_role(DEBT_ROLE);
             self.frozen_addresses.write(account, false);
             self.emit(AddressUnfrozen { account });
         }
@@ -195,105 +203,89 @@ mod WorkingCMTAT {
             self.frozen_addresses.read(account)
         }
 
-        fn freeze_tokens(ref self: ContractState, account: ContractAddress, amount: u256) {
-            self.access_control.assert_only_role(ENFORCER_ROLE);
-            let current_frozen = self.frozen_tokens.read(account);
-            self.frozen_tokens.write(account, current_frozen + amount);
-            self.emit(TokensFrozen { account, amount });
+        // Debt-specific functions
+        fn get_isin(self: @ContractState) -> ByteArray {
+            self.isin.read()
         }
 
-        fn unfreeze_tokens(ref self: ContractState, account: ContractAddress, amount: u256) {
-            self.access_control.assert_only_role(ENFORCER_ROLE);
-            let current_frozen = self.frozen_tokens.read(account);
-            assert(current_frozen >= amount, 'Insufficient frozen tokens');
-            self.frozen_tokens.write(account, current_frozen - amount);
-            self.emit(TokensUnfrozen { account, amount });
+        fn set_isin(ref self: ContractState, new_isin: ByteArray) {
+            self.access_control.assert_only_role(DEBT_ROLE);
+            self.isin.write(new_isin.clone());
+            self.emit(ISINSet { new_isin });
         }
 
-        fn get_frozen_tokens(self: @ContractState, account: ContractAddress) -> u256 {
-            self.frozen_tokens.read(account)
+        fn get_maturity_date(self: @ContractState) -> u64 {
+            self.maturity_date.read()
         }
 
-        fn active_balance_of(self: @ContractState, account: ContractAddress) -> u256 {
-            let total_balance = self.erc20.balance_of(account);
-            let frozen_amount = self.frozen_tokens.read(account);
-            if total_balance >= frozen_amount {
-                total_balance - frozen_amount
-            } else {
-                0
-            }
+        fn set_maturity_date(ref self: ContractState, new_maturity_date: u64) {
+            self.access_control.assert_only_role(DEBT_ROLE);
+            self.maturity_date.write(new_maturity_date);
+            self.emit(MaturityDateSet { new_maturity_date });
         }
 
-        fn detect_transfer_restriction(
-            self: @ContractState, 
-            from: ContractAddress, 
-            to: ContractAddress, 
-            amount: u256
-        ) -> u8 {
-            // Basic ERC-1404 implementation
-            if self.is_frozen(from) {
-                return 2; // Sender frozen
-            }
-            if self.is_frozen(to) {
-                return 3; // Recipient frozen
-            }
-            if self.active_balance_of(from) < amount {
-                return 1; // Insufficient active balance
-            }
-            0 // No restriction
+        fn get_interest_rate(self: @ContractState) -> u256 {
+            self.interest_rate.read()
         }
 
-        fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) -> felt252 {
-            if restriction_code == 0 {
-                'No restriction'
-            } else if restriction_code == 1 {
-                'Insufficient active balance'
-            } else if restriction_code == 2 {
-                'Sender frozen'
-            } else if restriction_code == 3 {
-                'Recipient frozen'
-            } else {
-                'Unknown restriction'
-            }
+        fn set_interest_rate(ref self: ContractState, new_interest_rate: u256) {
+            self.access_control.assert_only_role(DEBT_ROLE);
+            self.interest_rate.write(new_interest_rate);
+            self.emit(InterestRateSet { new_interest_rate });
         }
-    }
 
-    #[generate_trait]
-    impl InternalImpl of InternalTrait {
-        fn _check_active_balance(self: @ContractState, account: ContractAddress, amount: u256) {
-            let active_balance = self.active_balance_of(account);
-            assert(active_balance >= amount, Errors::INSUFFICIENT_BALANCE);
+        fn get_par_value(self: @ContractState) -> u256 {
+            self.par_value.read()
+        }
+
+        fn set_par_value(ref self: ContractState, new_par_value: u256) {
+            self.access_control.assert_only_role(DEBT_ROLE);
+            self.par_value.write(new_par_value);
+            self.emit(ParValueSet { new_par_value });
+        }
+
+        fn has_credit_event(self: @ContractState) -> bool {
+            self.credit_event_occurred.read()
+        }
+
+        fn get_credit_event_type(self: @ContractState) -> ByteArray {
+            self.credit_event_type.read()
+        }
+
+        fn set_credit_event(ref self: ContractState, event_type: ByteArray, occurred: bool) {
+            self.access_control.assert_only_role(DEBT_ROLE);
+            self.credit_event_occurred.write(occurred);
+            self.credit_event_type.write(event_type.clone());
+            self.emit(CreditEventSet { event_type, occurred });
+        }
+
+        fn token_type(self: @ContractState) -> ByteArray {
+            "Debt CMTAT"
         }
     }
 }
 
 #[starknet::interface]
-trait ICMTAT<TContractState> {
-    // Metadata
+trait IDebtCMTAT<TContractState> {
     fn terms(self: @TContractState) -> felt252;
     fn set_terms(ref self: TContractState, new_terms: felt252);
     fn flag(self: @TContractState) -> felt252;
     fn set_flag(ref self: TContractState, new_flag: felt252);
-    
-    // Minting and burning
     fn mint(ref self: TContractState, to: ContractAddress, amount: u256);
     fn burn(ref self: TContractState, from: ContractAddress, amount: u256);
-    
-    // Enforcement
     fn freeze_address(ref self: TContractState, account: ContractAddress);
     fn unfreeze_address(ref self: TContractState, account: ContractAddress);
     fn is_frozen(self: @TContractState, account: ContractAddress) -> bool;
-    fn freeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
-    fn unfreeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
-    fn get_frozen_tokens(self: @TContractState, account: ContractAddress) -> u256;
-    fn active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
-    
-    // ERC-1404 compliance
-    fn detect_transfer_restriction(
-        self: @TContractState, 
-        from: ContractAddress, 
-        to: ContractAddress, 
-        amount: u256
-    ) -> u8;
-    fn message_for_transfer_restriction(self: @TContractState, restriction_code: u8) -> felt252;
+    fn get_isin(self: @TContractState) -> ByteArray;
+    fn set_isin(ref self: TContractState, new_isin: ByteArray);
+    fn get_maturity_date(self: @TContractState) -> u64;
+    fn set_maturity_date(ref self: TContractState, new_maturity_date: u64);
+    fn get_interest_rate(self: @TContractState) -> u256;
+    fn set_interest_rate(ref self: TContractState, new_interest_rate: u256);
+    fn get_par_value(self: @TContractState) -> u256;
+    fn set_par_value(ref self: TContractState, new_par_value: u256);
+    fn has_credit_event(self: @TContractState) -> bool;
+    fn get_credit_event_type(self: @TContractState) -> ByteArray;
+    fn set_credit_event(ref self: TContractState, event_type: ByteArray, occurred: bool);
+    fn token_type(self: @TContractState) -> ByteArray;
 }

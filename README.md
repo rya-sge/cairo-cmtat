@@ -1,498 +1,353 @@
-# Cairo CMTAT Implementation
+# Cairo CMTAT - CMTAT Token Implementation for Starknet
 
-A comprehensive implementation of the Capital Markets Technology Association (CMTAT) token standard in Cairo for Starknet.
+A comprehensive implementation of CMTAT (Capital Markets and Technology Association Token) standard in Cairo for Starknet, based on the [CMTAT v3.0.0 Solidity reference implementation](https://github.com/CMTA/CMTAT).
 
 ## Overview
 
-This implementation provides a production-ready CMTAT framework inspired by the [CMTAT Solidity v3.0.0](https://github.com/CMTA/CMTAT) reference implementation, incorporating insights from [ERC3643-Cairo](https://github.com/Carbonable/ERC3643-Cairo) and [private-CMTAT-aztec](https://github.com/CMTA/private-CMTAT-aztec) implementations.
+This project implements the CMTAT token standard in Cairo, providing:
+- ✅ **ERC20 Compliance**: Full ERC20 token functionality
+- ✅ **Access Control**: Role-based permissions (Admin, Minter, Burner, Enforcer)
+- ✅ **Compliance Features**: Address freezing and partial token freezing
+- ✅ **ERC-1404 Support**: Transfer restriction detection and messaging
+- ✅ **Metadata Management**: Terms and flags for regulatory compliance
+- ✅ **OpenZeppelin Components**: Built on battle-tested OpenZeppelin Cairo contracts
 
 ## Features
 
-### Token Types
-
-- **Standard CMTAT**: Full-featured token with all compliance modules
-- **Debt CMTAT**: Specialized for debt securities with interest rates and maturity dates
-- **Allowlist CMTAT**: Enhanced with address allowlisting functionality
-- **Light CMTAT**: Minimal implementation for basic use cases
-
-### Core Modules
-
-#### Access Control (`access_control.cairo`)
-- Role-based access control with CMTAT-specific roles
-- Roles: `DEFAULT_ADMIN`, `MINTER`, `BURNER`, `ENFORCER`, `SNAPSHOOTER`
-- Admin-has-all-roles pattern for simplified management
-
-#### Pause Module (`pause.cairo`)
-- Contract pause and unpause functionality
-- Deactivation for permanent shutdown
-- Emergency controls for compliance requirements
-
-#### Enforcement Module (`enforcement.cairo`)
-- Address freezing and unfreezing
-- Partial token freezing per address
-- Batch operations for efficient management
-- Compliance with regulatory requirements
-
-#### ERC20 Base (`erc20_base.cairo`)
-- Core ERC20 functionality with CMTAT extensions
-- Transfer validation integration
-- Forced transfers for admin operations
-- Batch transfer operations
-
-#### Mint Module (`erc20_mint.cairo`)
-- Role-based token minting
-- Batch minting operations
-- Compliance checks during minting
-
-#### Burn Module (`erc20_burn.cairo`)
-- Role-based token burning
-- Batch burning operations
-- Forced burns for emergency situations
-- Active balance validation
-
-#### Validation System (`validation.cairo`)
-- ERC-1404 compliant transfer restrictions
-- Rule engine integration
-- Debt engine support for specialized validations
-- Comprehensive restriction codes
-
-### External Engine Interfaces
-
-#### Rule Engine (`engines.cairo`)
-- ERC-1404 transfer validation
-- Configurable business rules
-- Integration with external compliance systems
-
-#### Snapshot Engine
-- Point-in-time balance snapshots
-- Dividend distribution support
-- Governance and voting functionality
-
-#### Document Engine
-- Document management integration
-- Terms and conditions handling
-- Legal document associations
-
-#### Debt Engine
-- Debt-specific validation rules
-- Interest calculation support
-- Maturity date enforcement
-
-## Architecture
-
-The implementation follows Cairo's component pattern for modularity and composability:
-
-```
-├── interfaces/
-│   ├── icmtat.cairo          # Core CMTAT interfaces
-│   └── engines.cairo         # External engine interfaces
-├── modules/
-│   ├── access_control.cairo  # Role-based access control
-│   ├── pause.cairo          # Pause and deactivation
-│   ├── enforcement.cairo    # Address and token freezing
-│   ├── erc20_base.cairo     # Core ERC20 functionality
-│   ├── erc20_mint.cairo     # Token minting
-│   ├── erc20_burn.cairo     # Token burning
-│   └── validation.cairo     # Transfer validation
-├── contracts/
-│   ├── standard_cmtat.cairo  # Standard token implementation
-│   ├── debt_cmtat.cairo     # Debt token implementation
-│   ├── allowlist_cmtat.cairo # Allowlist token implementation
-│   └── light_cmtat.cairo    # Light token implementation
-└── tests/
-    └── cmtat_tests.cairo    # Comprehensive test suite
-```
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd cairo-cmtat
-```
-
-2. Install dependencies:
-```bash
-scarb build
-```
-
-3. Run tests:
-```bash
-snforge test
-```
-
-## Usage
-
-### Deploying a Standard CMTAT Token
-
-```cairo
-use cairo_cmtat::contracts::standard_cmtat::StandardCMTAT;
-
-// Deploy with constructor parameters
-let admin = contract_address_const::<0x123>();
-let name = 'My CMTAT Token';
-let symbol = 'MCT';
-let decimals = 18_u8;
-let terms = 'Terms and Conditions';
-let flag = 'FLAG001';
-
-// Constructor will initialize all components
-```
-
-### Minting Tokens
-
-```cairo
-// Grant minter role to an address
-access_control.grant_role('MINTER', minter_address);
-
-// Mint tokens
-erc20_mint.mint(recipient, amount);
-
-// Batch mint
-erc20_mint.batch_mint(recipients_array, amounts_array);
-```
-
-### Managing Allowlists (Allowlist Token)
-
-```cairo
-// Add address to allowlist
-allowlist_functions.add_to_allowlist(address);
-
-// Batch update allowlist
-allowlist_functions.batch_allowlist_update(addresses, statuses);
-```
-
-### Enforcement Operations
-
-```cairo
-// Freeze an address
-enforcement.freeze_address(address);
-
-// Freeze partial tokens
-enforcement.freeze_partial_tokens(address, amount);
-
-// Batch freeze addresses
-enforcement.batch_freeze_addresses(addresses);
-```
-
-## Token Types Comparison
-
-| Feature | Standard | Debt | Allowlist | Light |
-|---------|----------|------|-----------|-------|
-| Access Control | ✅ | ✅ | ✅ | ✅ |
-| Pause/Unpause | ✅ | ✅ | ✅ | ❌ |
-| Enforcement | ✅ | ✅ | ✅ | ❌ |
-| Minting | ✅ | ✅ | ✅ | ✅ |
-| Burning | ✅ | ✅ | ✅ | ❌ |
-| Validation | ✅ | ✅ | Enhanced | Minimal |
-| Interest Rates | ❌ | ✅ | ❌ | ❌ |
-| Allowlisting | ❌ | ❌ | ✅ | ❌ |
-
-## Compliance Features
-
-### ERC-1404 Compliance
-- Standardized restriction codes
-- `detect_transfer_restriction()` function
-- `message_for_transfer_restriction()` function
-
-### Transfer Restrictions
-- Sender/recipient validation
-- Balance sufficiency checks
-- Frozen address detection
-- Rule engine integration
-- Custom business logic support
-
-### Administrative Controls
-- Role-based permissions
-- Emergency pause functionality
-- Forced transfers for compliance
-- Address freezing capabilities
-
-## Security Considerations
-
-1. **Role Management**: Carefully manage admin roles and permissions
-2. **Pause Functionality**: Use pause for emergency situations only
-3. **Forced Transfers**: Reserve for regulatory compliance only
-4. **Engine Integration**: Validate external engines before integration
-5. **Batch Operations**: Monitor gas usage for large batches
-
-## Testing
-
-The test suite covers:
-- Token deployment and initialization
-- Role-based access control
-- Minting and burning operations
-- Transfer restrictions and validations
-- Pause and enforcement functionality
-- Allowlist management
-- Debt-specific features
-
-Run tests with:
-```bash
-snforge test
-```
-
-## Legacy Implementation
-
-This repository also includes a simple ERC20 implementation for backwards compatibility:
-
-```bash
-# Deploy the legacy ERC20 token
-./scripts/deploy.sh
-```
-
-For full documentation of the legacy deployment, see the original sections below.
-
----
-
-## License
-
-This project is licensed under the Mozilla Public License 2.0 (MPL-2.0).
-
-## Contributing
-
-Contributions are welcome! Please ensure all tests pass and follow the established coding patterns.
-
-## References
-
-- [CMTAT Solidity v3.0.0](https://github.com/CMTA/CMTAT)
-- [ERC3643-Cairo](https://github.com/Carbonable/ERC3643-Cairo)
-- [ERC-1404](https://erc1404.org/)
-- [OpenZeppelin Cairo Contracts](https://github.com/OpenZeppelin/cairo-contracts)
-
----
-
-# Legacy ERC20 Implementation
-
-The following sections document the original simple ERC20 token implementation.
-
-## Features
-
-- ✅ Standard ERC20 token implementation
-- ✅ Built with OpenZeppelin Contracts for Cairo v0.17.0
-- ✅ Compatible with Cairo 2.6.3 and Scarb 2.6.4
-- ✅ Automated deployment script with block explorer URL
-- ✅ Support for both Sepolia Testnet and Mainnet
-- ✅ Initial supply of 1,000,000 tokens (18 decimals)
-- ✅ Deployment details saved to JSON file
-
-## Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-1. **Scarb** - Cairo package manager
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
-   ```
-
-2. **Starkli** - Starknet CLI tool
-   ```bash
-   curl https://get.starkli.sh | sh
-   starkliup
-   ```
-
-3. **Starknet Account** - You need a funded account on either:
-   - Sepolia Testnet (recommended for testing)
-   - Mainnet (for production)
+### Core CMTAT Functionality
+
+1. **Role-Based Access Control**
+   - `DEFAULT_ADMIN_ROLE`: Full administrative control
+   - `MINTER_ROLE`: Mint new tokens
+   - `BURNER_ROLE`: Burn tokens
+   - `ENFORCER_ROLE`: Freeze addresses and tokens
+
+2. **Enforcement Mechanisms**
+   - **Address Freezing**: Completely freeze an address from transfers
+   - **Partial Token Freezing**: Freeze specific token amounts while allowing partial transfers
+   - **Active Balance Tracking**: Distinguish between total and available balances
+
+3. **Compliance & Metadata**
+   - **Terms**: Store regulatory terms as felt252
+   - **Flag**: Additional metadata flag
+   - **ERC-1404 Integration**: Transfer restriction codes and messages
+
+### Technical Stack
+
+- **Cairo**: v2.6.3+
+- **Scarb**: v2.6.4+
+- **OpenZeppelin Cairo Contracts**: v0.13.0
+- **Starknet Foundry**: v0.25.0 (for testing)
 
 ## Project Structure
 
 ```
 cairo-cmtat/
-├── Scarb.toml              # Project configuration
 ├── src/
-│   └── lib.cairo           # ERC20 token contract
+│   ├── lib.cairo                    # Library entry point
+│   ├── working_cmtat.cairo          # Main CMTAT implementation
+│   ├── interfaces/
+│   │   ├── icmtat.cairo            # CMTAT interface definitions
+│   │   └── engines.cairo           # Engine interfaces (Document, Debt)
+│   ├── modules/                    # Modular components (future)
+│   └── contracts/                  # Specialized implementations (future)
 ├── scripts/
-│   └── deploy.sh           # Deployment script
-└── README.md               # This file
+│   └── deploy_cmtat.sh             # Deployment script
+├── tests/
+│   ├── mod.cairo
+│   └── cmtat_tests.cairo
+├── Scarb.toml                      # Project configuration
+└── README.md
 ```
 
-## Quick Start
+## Installation
 
-### 1. Build the Contract
+### Prerequisites
+
+1. **Install Scarb** (Cairo package manager)
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
+```
+
+2. **Install Starkli** (Starknet CLI)
+```bash
+curl https://get.starkli.sh | sh
+starkliup
+```
+
+### Build the Project
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd cairo-cmtat
+
+# Build the project
 scarb build
 ```
 
-This will compile the Cairo contract and generate the contract class JSON files in the `target/dev/` directory.
+## Usage
 
-### 2. Set Up Your Starknet Account
+### Deploying a CMTAT Token
 
-If you don't have a Starknet account yet, create one using Starkli:
-
-```bash
-# Create a new account
-starkli account oz init ~/.starknet-accounts/account.json
-
-# Deploy the account (you'll need to fund it first)
-starkli account deploy ~/.starknet-accounts/account.json
-```
-
-### 3. Deploy the Token
-
-Run the deployment script:
+The project includes a comprehensive deployment script that handles the entire deployment process:
 
 ```bash
-./scripts/deploy.sh
+# Basic deployment to Sepolia testnet
+./scripts/deploy_cmtat.sh \
+  --network sepolia \
+  --name "My Security Token" \
+  --symbol "MST"
+
+# Advanced deployment with custom parameters
+./scripts/deploy_cmtat.sh \
+  --network sepolia \
+  --account my_account \
+  --admin 0x123... \
+  --recipient 0x456... \
+  --supply 10000000 \
+  --name "Company Shares" \
+  --symbol "CSHARE" \
+  --terms 0x54657374 \
+  --flag 0x1
 ```
 
-The script will:
-1. Prompt you to select a network (Sepolia Testnet or Mainnet)
-2. Ask for the recipient address (who will receive the initial token supply)
-3. Request your account address and keystore path
-4. Build, declare, and deploy the contract
-5. Display the block explorer URL for your deployed contract
-6. Save deployment details to `deployment.json`
+#### Deployment Options
 
-## Deployment Script Details
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--network` | Starknet network (sepolia/mainnet) | sepolia |
+| `--account` | Account name for deployment | default |
+| `--admin` | Admin address | 0x123...def |
+| `--recipient` | Initial token recipient | 0x123...def |
+| `--supply` | Initial supply (with decimals) | 1000000000000000000000000 |
+| `--name` | Token name | CMTAT Token |
+| `--symbol` | Token symbol | CMTAT |
+| `--terms` | Terms felt252 | 0x54657374546f6b656e |
+| `--flag` | Flag felt252 | 0x1 |
 
-The deployment script (`scripts/deploy.sh`) provides:
+### Interacting with the Contract
 
-- **Interactive Network Selection**: Choose between Sepolia Testnet and Mainnet
-- **Automated Build Process**: Compiles the contract before deployment
-- **Class Declaration**: Declares the contract class on Starknet
-- **Contract Deployment**: Deploys the contract with the specified recipient
-- **Block Explorer Integration**: Returns the Voyager explorer URL for your contract
-- **Deployment Logging**: Saves all deployment details to `deployment.json`
-
-### Example Output
-
-```
-================================================
-   CMTAT ERC20 Token Deployment Script
-================================================
-
-Select network:
-1) Sepolia Testnet (default)
-2) Mainnet
-Enter choice [1-2] (default: 1): 1
-Selected: Sepolia Testnet
-
-Enter recipient address for initial token supply: 0x...
-Enter your account address: 0x...
-Enter path to your account keystore file: ~/.starknet-accounts/account.json
-
-Step 1: Building the contract...
-✓ Contract built successfully
-
-Step 2: Declaring the contract class...
-✓ Class hash: 0x...
-
-Step 3: Deploying the contract...
-✓ Contract deployed successfully!
-
-================================================
-   Deployment Successful!
-================================================
-
-Network: sepolia
-Contract Address: 0x...
-Class Hash: 0x...
-Recipient: 0x...
-
-Block Explorer URL:
-https://sepolia.voyager.online/contract/0x...
-
-Transaction Explorer:
-https://sepolia.voyager.online/tx/0x...
-
-================================================
-Deployment details saved to deployment.json
-```
-
-## Token Details
-
-- **Name**: CMTAT Token
-- **Symbol**: CMTAT
-- **Decimals**: 18 (standard)
-- **Initial Supply**: 1,000,000 tokens (1,000,000 × 10^18 in smallest unit)
-
-## Contract Interface
-
-The contract implements the standard ERC20 interface:
-
-- `name() -> felt252` - Returns the token name
-- `symbol() -> felt252` - Returns the token symbol
-- `decimals() -> u8` - Returns the number of decimals
-- `total_supply() -> u256` - Returns the total token supply
-- `balance_of(account: ContractAddress) -> u256` - Returns the balance of an account
-- `allowance(owner: ContractAddress, spender: ContractAddress) -> u256` - Returns the allowance
-- `transfer(recipient: ContractAddress, amount: u256) -> bool` - Transfers tokens
-- `transfer_from(sender: ContractAddress, recipient: ContractAddress, amount: u256) -> bool` - Transfers tokens from
-- `approve(spender: ContractAddress, amount: u256) -> bool` - Approves spending
-
-## Interacting with Your Deployed Token
-
-After deployment, you can interact with your token using Starkli:
-
-### Check Token Balance
+#### Read Functions
 
 ```bash
-starkli call <CONTRACT_ADDRESS> balance_of <ACCOUNT_ADDRESS> --rpc <RPC_URL>
+# Check token balance
+starkli call <CONTRACT_ADDRESS> balance_of <ACCOUNT> --network sepolia
+
+# Get total supply
+starkli call <CONTRACT_ADDRESS> total_supply --network sepolia
+
+# Check if address is frozen
+starkli call <CONTRACT_ADDRESS> is_frozen <ACCOUNT> --network sepolia
+
+# Get frozen token amount for an address
+starkli call <CONTRACT_ADDRESS> get_frozen_tokens <ACCOUNT> --network sepolia
+
+# Get active (unfrozen) balance
+starkli call <CONTRACT_ADDRESS> active_balance_of <ACCOUNT> --network sepolia
+
+# Get terms
+starkli call <CONTRACT_ADDRESS> terms --network sepolia
+
+# Get flag
+starkli call <CONTRACT_ADDRESS> flag --network sepolia
+
+# Check transfer restrictions
+starkli call <CONTRACT_ADDRESS> detect_transfer_restriction <FROM> <TO> <AMOUNT> --network sepolia
 ```
 
-### Transfer Tokens
+#### Write Functions
 
 ```bash
-starkli invoke <CONTRACT_ADDRESS> transfer <RECIPIENT> <AMOUNT_LOW> <AMOUNT_HIGH> \
-  --account <YOUR_ACCOUNT> \
-  --keystore <KEYSTORE_PATH> \
-  --rpc <RPC_URL>
+# Mint tokens (requires MINTER_ROLE)
+starkli invoke <CONTRACT_ADDRESS> mint <RECIPIENT> <AMOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Burn tokens (requires BURNER_ROLE)
+starkli invoke <CONTRACT_ADDRESS> burn <FROM> <AMOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Transfer tokens
+starkli invoke <CONTRACT_ADDRESS> transfer <TO> <AMOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Freeze an address (requires ENFORCER_ROLE)
+starkli invoke <CONTRACT_ADDRESS> freeze_address <ACCOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Unfreeze an address (requires ENFORCER_ROLE)
+starkli invoke <CONTRACT_ADDRESS> unfreeze_address <ACCOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Freeze partial tokens (requires ENFORCER_ROLE)
+starkli invoke <CONTRACT_ADDRESS> freeze_tokens <ACCOUNT> <AMOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Unfreeze partial tokens (requires ENFORCER_ROLE)
+starkli invoke <CONTRACT_ADDRESS> unfreeze_tokens <ACCOUNT> <AMOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Set terms (requires DEFAULT_ADMIN_ROLE)
+starkli invoke <CONTRACT_ADDRESS> set_terms <NEW_TERMS> \
+  --network sepolia --account <ACCOUNT>
+
+# Set flag (requires DEFAULT_ADMIN_ROLE)
+starkli invoke <CONTRACT_ADDRESS> set_flag <NEW_FLAG> \
+  --network sepolia --account <ACCOUNT>
 ```
 
-### Approve Spending
+#### Role Management
 
 ```bash
-starkli invoke <CONTRACT_ADDRESS> approve <SPENDER> <AMOUNT_LOW> <AMOUNT_HIGH> \
-  --account <YOUR_ACCOUNT> \
-  --keystore <KEYSTORE_PATH> \
-  --rpc <RPC_URL>
+# Grant a role (requires DEFAULT_ADMIN_ROLE)
+starkli invoke <CONTRACT_ADDRESS> grant_role <ROLE> <ACCOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Revoke a role (requires DEFAULT_ADMIN_ROLE)
+starkli invoke <CONTRACT_ADDRESS> revoke_role <ROLE> <ACCOUNT> \
+  --network sepolia --account <ACCOUNT>
+
+# Check if account has a role
+starkli call <CONTRACT_ADDRESS> has_role <ROLE> <ACCOUNT> --network sepolia
+
+# Role identifiers
+# MINTER_ROLE: 'MINTER' (felt252)
+# BURNER_ROLE: 'BURNER' (felt252)
+# ENFORCER_ROLE: 'ENFORCER' (felt252)
 ```
 
-## Block Explorer
+## Smart Contract Architecture
 
-Once deployed, you can view your contract on Voyager:
+### WorkingCMTAT Contract
 
-- **Sepolia Testnet**: https://sepolia.voyager.online/contract/YOUR_CONTRACT_ADDRESS
-- **Mainnet**: https://voyager.online/contract/YOUR_CONTRACT_ADDRESS
+The main implementation (`src/working_cmtat.cairo`) uses OpenZeppelin components:
 
-The explorer allows you to:
-- View all transactions
-- Check token holders
-- Read contract state
-- Verify the contract code
+```cairo
+component!(path: ERC20Component, storage: erc20, event: ERC20Event);
+component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
+component!(path: SRC5Component, storage: src5, event: SRC5Event);
+```
 
-## Troubleshooting
+### Key Components
 
-### Build Issues
+1. **ERC20Component**: Standard token functionality
+2. **AccessControlComponent**: Role-based permissions
+3. **SRC5Component**: Interface detection
 
-If you encounter build errors:
+### Storage Layout
+
+```cairo
+struct Storage {
+    erc20: ERC20Component::Storage,
+    access_control: AccessControlComponent::Storage,
+    src5: SRC5Component::Storage,
+    terms: felt252,
+    flag: felt252,
+    frozen_addresses: LegacyMap<ContractAddress, bool>,
+    frozen_tokens: LegacyMap<ContractAddress, u256>,
+}
+```
+
+## Testing
+
 ```bash
-# Clean the build directory
-rm -rf target/
+# Run tests with Starknet Foundry
+snforge test
 
-# Rebuild
-scarb build
+# Run specific test
+snforge test test_mint
+
+# Run with verbose output
+snforge test -vv
 ```
 
-### Deployment Issues
+## Deployment Info
 
-If deployment fails:
-1. Ensure your account has sufficient funds for gas fees
-2. Verify your account address and keystore path are correct
-3. Check that you're connected to the correct network
-4. Make sure Starkli is properly installed and configured
+All deployments are automatically logged to the `deployments/` directory with detailed information:
 
-### Account Funding
+```json
+{
+  "network": "sepolia",
+  "contract_address": "0x...",
+  "class_hash": "0x...",
+  "admin": "0x...",
+  "recipient": "0x...",
+  "initial_supply": "1000000",
+  "token_name": "My Token",
+  "token_symbol": "MTK",
+  "terms": "0x...",
+  "flag": "0x...",
+  "timestamp": "2025-01-27T10:00:00Z"
+}
+```
 
-For Sepolia Testnet, you can get test ETH from:
-- [Starknet Faucet](https://starknet-faucet.vercel.app/)
-- [Alchemy Faucet](https://www.alchemy.com/faucets/starknet-sepolia)
+## ERC-1404 Compliance
+
+The contract implements ERC-1404 restricted token transfer standard:
+
+### Restriction Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No restriction |
+| 1 | Insufficient active balance |
+| 2 | Sender frozen |
+| 3 | Recipient frozen |
+
+### Usage
+
+```cairo
+let code = detect_transfer_restriction(from, to, amount);
+let message = message_for_transfer_restriction(code);
+```
 
 ## Security Considerations
 
-- **Private Keys**: Never share your keystore files or private keys
-- **Testing**: Always test on Sepolia Testnet before deploying to Mainnet
-- **Audits**: Consider getting a professional audit for production deployments
-- **Initial Supply**: Review the initial token supply before deployment
+1. **Role Management**: Carefully manage role assignments
+2. **Admin Key Security**: Protect the admin private key
+3. **Freeze Powers**: Use enforcement powers responsibly
+4. **Audit**: Consider professional security audit before mainnet deployment
+
+## Roadmap
+
+- [ ] Implement Pausable functionality
+- [ ] Add Snapshot support
+- [ ] Implement Document Engine integration
+- [ ] Add Debt token variant
+- [ ] Add Allowlist token variant
+- [ ] Comprehensive test suite
+- [ ] Gas optimization
+- [ ] Security audit
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
+
+## License
+
+This project is licensed under the Mozilla Public License 2.0 (MPL-2.0).
+
+## References
+
+- [CMTAT Solidity Implementation](https://github.com/CMTA/CMTAT)
+- [CMTAT Specification v3.0.0](https://github.com/CMTA/CMTAT/blob/master/CMTATSpecificationV3.0.0.pdf)
+- [OpenZeppelin Cairo Contracts](https://github.com/OpenZeppelin/cairo-contracts)
+- [Cairo Book](https://book.cairo-lang.org/)
+- [Starknet Documentation](https://docs.starknet.io/)
+
+## Support
+
+For questions and support:
+- Open an issue on GitHub
+- Contact the development team
+- Check the Cairo and Starknet community resources
+
+---
+
+**Built with ❤️ for the Starknet ecosystem**

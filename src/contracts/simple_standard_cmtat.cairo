@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
-// Working CMTAT Implementation compatible with Cairo 2.6.3
+// Standard CMTAT Implementation - Full Features
 
 use starknet::ContractAddress;
 
 #[starknet::contract]
-mod WorkingCMTAT {
+mod StandardCMTAT {
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
@@ -14,21 +14,18 @@ mod WorkingCMTAT {
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);
 
-    // Mixin implementations
     #[abi(embed_v0)]
     impl ERC20MixinImpl = ERC20Component::ERC20MixinImpl<ContractState>;
     #[abi(embed_v0)]
     impl AccessControlMixinImpl = AccessControlComponent::AccessControlMixinImpl<ContractState>;
-    // Note: SRC5 is already included in AccessControlMixinImpl, no need to embed again
 
-    // Internal implementations
     impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
     impl AccessControlInternalImpl = AccessControlComponent::InternalImpl<ContractState>;
 
-    // Constants for CMTAT roles
     const MINTER_ROLE: felt252 = 'MINTER';
     const BURNER_ROLE: felt252 = 'BURNER';
     const ENFORCER_ROLE: felt252 = 'ENFORCER';
+    const SNAPSHOOTER_ROLE: felt252 = 'SNAPSHOOTER';
 
     #[storage]
     struct Storage {
@@ -38,11 +35,12 @@ mod WorkingCMTAT {
         access_control: AccessControlComponent::Storage,
         #[substorage(v0)]
         src5: SRC5Component::Storage,
-        // CMTAT specific storage
         terms: felt252,
         flag: felt252,
+        information: ByteArray,
         frozen_addresses: LegacyMap<ContractAddress, bool>,
         frozen_tokens: LegacyMap<ContractAddress, u256>,
+        paused: bool,
     }
 
     #[event]
@@ -54,9 +52,11 @@ mod WorkingCMTAT {
         AccessControlEvent: AccessControlComponent::Event,
         #[flat]
         SRC5Event: SRC5Component::Event,
-        // CMTAT specific events
         TermsSet: TermsSet,
         FlagSet: FlagSet,
+        InformationSet: InformationSet,
+        Paused: Paused,
+        Unpaused: Unpaused,
         AddressFrozen: AddressFrozen,
         AddressUnfrozen: AddressUnfrozen,
         TokensFrozen: TokensFrozen,
@@ -65,16 +65,29 @@ mod WorkingCMTAT {
 
     #[derive(Drop, starknet::Event)]
     struct TermsSet {
-        #[key]
         pub previous_terms: felt252,
         pub new_terms: felt252,
     }
 
     #[derive(Drop, starknet::Event)]
     struct FlagSet {
-        #[key]
         pub previous_flag: felt252,
         pub new_flag: felt252,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct InformationSet {
+        pub new_information: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Paused {
+        pub account: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Unpaused {
+        pub account: ContractAddress,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -103,15 +116,6 @@ mod WorkingCMTAT {
         pub amount: u256,
     }
 
-    mod Errors {
-        pub const ADDRESS_FROZEN: felt252 = 'CMTAT: address frozen';
-        pub const INSUFFICIENT_BALANCE: felt252 = 'CMTAT: insufficient balance';
-        pub const CALLER_NOT_ADMIN: felt252 = 'CMTAT: caller not admin';
-        pub const CALLER_NOT_MINTER: felt252 = 'CMTAT: caller not minter';
-        pub const CALLER_NOT_BURNER: felt252 = 'CMTAT: caller not burner';
-        pub const CALLER_NOT_ENFORCER: felt252 = 'CMTAT: caller not enforcer';
-    }
-
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -121,30 +125,30 @@ mod WorkingCMTAT {
         initial_supply: u256,
         recipient: ContractAddress,
         terms: felt252,
-        flag: felt252
+        flag: felt252,
+        information: ByteArray
     ) {
-        // Initialize components
         self.erc20.initializer(name, symbol);
         self.access_control.initializer();
 
-        // Grant roles to admin
         self.access_control._grant_role(DEFAULT_ADMIN_ROLE, admin);
         self.access_control._grant_role(MINTER_ROLE, admin);
         self.access_control._grant_role(BURNER_ROLE, admin);
         self.access_control._grant_role(ENFORCER_ROLE, admin);
+        self.access_control._grant_role(SNAPSHOOTER_ROLE, admin);
 
-        // Set CMTAT metadata
         self.terms.write(terms);
         self.flag.write(flag);
+        self.information.write(information);
+        self.paused.write(false);
 
-        // Mint initial supply
         if initial_supply > 0 {
             self.erc20._mint(recipient, initial_supply);
         }
     }
 
     #[abi(embed_v0)]
-    impl CMTATImpl of super::ICMTAT<ContractState> {
+    impl StandardCMTATImpl of super::IStandardCMTAT<ContractState> {
         fn terms(self: @ContractState) -> felt252 {
             self.terms.read()
         }
@@ -167,15 +171,44 @@ mod WorkingCMTAT {
             self.emit(FlagSet { previous_flag, new_flag });
         }
 
+        fn information(self: @ContractState) -> ByteArray {
+            self.information.read()
+        }
+
+        fn set_information(ref self: ContractState, new_information: ByteArray) {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.information.write(new_information.clone());
+            self.emit(InformationSet { new_information });
+        }
+
+        fn is_paused(self: @ContractState) -> bool {
+            self.paused.read()
+        }
+
+        fn pause(ref self: ContractState) {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.paused.write(true);
+            self.emit(Paused { account: get_caller_address() });
+        }
+
+        fn unpause(ref self: ContractState) {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.paused.write(false);
+            self.emit(Unpaused { account: get_caller_address() });
+        }
+
         fn mint(ref self: ContractState, to: ContractAddress, amount: u256) {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.is_frozen(to), Errors::ADDRESS_FROZEN);
+            assert(!self.is_paused(), 'Contract is paused');
+            assert(!self.is_frozen(to), 'Address is frozen');
             self.erc20._mint(to, amount);
         }
 
         fn burn(ref self: ContractState, from: ContractAddress, amount: u256) {
             self.access_control.assert_only_role(BURNER_ROLE);
-            self._check_active_balance(from, amount);
+            assert(!self.is_paused(), 'Contract is paused');
+            let active_balance = self.active_balance_of(from);
+            assert(active_balance >= amount, 'Insufficient active balance');
             self.erc20._burn(from, amount);
         }
 
@@ -224,62 +257,25 @@ mod WorkingCMTAT {
             }
         }
 
-        fn detect_transfer_restriction(
-            self: @ContractState, 
-            from: ContractAddress, 
-            to: ContractAddress, 
-            amount: u256
-        ) -> u8 {
-            // Basic ERC-1404 implementation
-            if self.is_frozen(from) {
-                return 2; // Sender frozen
-            }
-            if self.is_frozen(to) {
-                return 3; // Recipient frozen
-            }
-            if self.active_balance_of(from) < amount {
-                return 1; // Insufficient active balance
-            }
-            0 // No restriction
-        }
-
-        fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) -> felt252 {
-            if restriction_code == 0 {
-                'No restriction'
-            } else if restriction_code == 1 {
-                'Insufficient active balance'
-            } else if restriction_code == 2 {
-                'Sender frozen'
-            } else if restriction_code == 3 {
-                'Recipient frozen'
-            } else {
-                'Unknown restriction'
-            }
-        }
-    }
-
-    #[generate_trait]
-    impl InternalImpl of InternalTrait {
-        fn _check_active_balance(self: @ContractState, account: ContractAddress, amount: u256) {
-            let active_balance = self.active_balance_of(account);
-            assert(active_balance >= amount, Errors::INSUFFICIENT_BALANCE);
+        fn token_type(self: @ContractState) -> ByteArray {
+            "Standard CMTAT"
         }
     }
 }
 
 #[starknet::interface]
-trait ICMTAT<TContractState> {
-    // Metadata
+trait IStandardCMTAT<TContractState> {
     fn terms(self: @TContractState) -> felt252;
     fn set_terms(ref self: TContractState, new_terms: felt252);
     fn flag(self: @TContractState) -> felt252;
     fn set_flag(ref self: TContractState, new_flag: felt252);
-    
-    // Minting and burning
+    fn information(self: @TContractState) -> ByteArray;
+    fn set_information(ref self: TContractState, new_information: ByteArray);
+    fn is_paused(self: @TContractState) -> bool;
+    fn pause(ref self: TContractState);
+    fn unpause(ref self: TContractState);
     fn mint(ref self: TContractState, to: ContractAddress, amount: u256);
     fn burn(ref self: TContractState, from: ContractAddress, amount: u256);
-    
-    // Enforcement
     fn freeze_address(ref self: TContractState, account: ContractAddress);
     fn unfreeze_address(ref self: TContractState, account: ContractAddress);
     fn is_frozen(self: @TContractState, account: ContractAddress) -> bool;
@@ -287,13 +283,5 @@ trait ICMTAT<TContractState> {
     fn unfreeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
     fn get_frozen_tokens(self: @TContractState, account: ContractAddress) -> u256;
     fn active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
-    
-    // ERC-1404 compliance
-    fn detect_transfer_restriction(
-        self: @TContractState, 
-        from: ContractAddress, 
-        to: ContractAddress, 
-        amount: u256
-    ) -> u8;
-    fn message_for_transfer_restriction(self: @TContractState, restriction_code: u8) -> felt252;
+    fn token_type(self: @TContractState) -> ByteArray;
 }
