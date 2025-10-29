@@ -38,6 +38,38 @@ scarb build
 scarb test
 ```
 
+## Manual Deployment (if needed)
+
+If the automated deployment script has issues with the Debt CMTAT contract, you can deploy it manually:
+
+### Deploy Debt CMTAT Manually
+```bash
+# After running ./scripts/deploy.sh and sourcing .env
+source .env
+
+# Deploy Debt CMTAT with proper ByteArray encoding
+starkli deploy \
+  0x073df1d757f9927b737ae61d1b350aeefa4df2bf1cfc73c47c017b9e80e246e7 \
+  --account ~/.starkli-wallets/deployer/account.json \
+  --keystore ~/.starkli-wallets/deployer/keystore.json \
+  --rpc https://starknet-sepolia.public.blastapi.io/rpc/v0.7 \
+  $ADMIN_ADDR \
+  0 0x4465627420434d544154 11 \
+  0 0x44434d544154 7 \
+  0 0x56302e302e30 6 \
+  18 \
+  $ADMIN_ADDR \
+  $RULE_ENGINE \
+  $SNAPSHOT_ENGINE
+```
+
+**Parameters explained:**
+- `0x4465627420434d544154 11` = "Debt CMTAT" (ByteArray format)
+- `0x44434d544154 7` = "DCMTAT" (symbol)
+- `0x56302e302e30 6` = "V0.0.0" (version)
+- `18` = decimals
+- Uses existing `$RULE_ENGINE` and `$SNAPSHOT_ENGINE` from automated deployment
+
 ## Live Deployment (Starknet Sepolia)
 
 All contracts are deployed and ready for interaction:
