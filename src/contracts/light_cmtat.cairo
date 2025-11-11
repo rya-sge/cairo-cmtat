@@ -1,21 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 // Light CMTAT Implementation - Core CMTAT Framework Features
-//
-// Supply Management Behavior:
-// - Mint: Checks pause, deactivation, frozen addresses (core CMTAT requirements)
-// - Burn: Checks pause, deactivation, active balance (core CMTAT requirements)
-//
-// Core CMTAT framework features included:
-// ✅ Pause functionality
-// ✅ Address freezing
-// ✅ Contract deactivation
-// ✅ Partial token freezing
-// ✅ Burn functionality
-//
-// Optional features excluded:
-// ❌ Rule engine integration
-// ❌ MetaTx (ERC-2771)
-// ❌ Forced transfer (only burn/mint required by framework)
 
 use starknet::ContractAddress;
 
