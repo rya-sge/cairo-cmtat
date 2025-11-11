@@ -1,15 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 // Standard CMTAT Implementation - Full Features
-//
-// Supply Management Behavior:
-// - Mint: Checks pause state, frozen addresses, requires MINTER_ROLE
-// - Burn: Checks pause state, active balance, requires BURNER_ROLE
-// 
-// Missing from CMTAT v3.0.0 Solidity:
-// - Rule engine integration for mint/burn operations  
-// - Contract deactivation functionality
-// - Batch operations (batchMint, batchBurn)
-// - Cross-chain mint/burn operations
 
 use starknet::ContractAddress;
 

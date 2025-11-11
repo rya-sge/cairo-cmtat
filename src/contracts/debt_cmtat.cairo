@@ -1,17 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 // Debt CMTAT Implementation - For Debt Instruments
-//
-// Supply Management Behavior:
-// - Mint: Full CMTAT v3.0.0 compliance (pause, deactivation, frozen addresses, rule engine)
-// - Burn: Full CMTAT v3.0.0 compliance (pause, deactivation, active balance, rule engine)
-//
-// Features aligned with CMTAT v3.0.0 Solidity:
-//  Pause state checks in mint/burn
-//  Contract deactivation functionality
-//  Active balance validation in burn
-//  Rule engine integration
-//  Partial token freezing support
-//  Enhanced transfer restrictions
 
 use starknet::ContractAddress;
 use cairo_cmtat::engines::rule_engine::{IRuleEngineDispatcher, IRuleEngineDispatcherTrait};
@@ -261,26 +249,6 @@ mod DebtCMTAT {
         /// 
         /// # Restrictions:
         /// - Requires BURNER_ROLE permission
-        /// 
-        /// # Arguments:
-        /// - `from`: Address to burn tokens from
-        /// - `amount`: Amount of tokens to burn
-        /// 
-        /// # Panics:
-        /// - If caller doesn't have BURNER_ROLE
-        /// - If insufficient balance (standard ERC20 check)
-        /// 
-        /// # Warning:
-        /// This implementation is missing several checks compared to
-        /// Standard CMTAT and CMTAT v3.0.0 Solidity:
-        /// - No pause state check
-        /// - No frozen address check
-        /// - No active balance check (ignores frozen tokens)
-        /// - No rule engine integration
-        /// Burn tokens from a specified address
-        /// 
-        /// # Restrictions:
-        /// - Requires BURNER_ROLE permission
         /// - Contract must not be paused
         /// - Contract must not be deactivated
         /// - Must have sufficient active balance (unfrozen tokens)
@@ -296,26 +264,6 @@ mod DebtCMTAT {
         /// - If contract is deactivated
         /// - If insufficient active balance (considering frozen tokens)
         /// - If rule engine restricts the operation
-        fn burn(ref self: ContractState, from: ContractAddress, amount: u256) {
-            self.access_control.assert_only_role(BURNER_ROLE);
-            assert(!self.is_paused(), 'Contract is paused');
-            assert(!self.is_deactivated(), 'Contract is deactivated');
-            
-            let active_balance = self.active_balance_of(from);
-            assert(active_balance >= amount, 'Insufficient active balance');
-            
-            // Call rule engine if configured
-            let rule_engine_addr = self.rule_engine.read();
-            if rule_engine_addr != starknet::contract_address_const::<0>() {
-                let rule_engine = IRuleEngineDispatcher { contract_address: rule_engine_addr };
-                let restriction = rule_engine.detect_transfer_restriction(
-                    from, 
-                    starknet::contract_address_const::<0>(), 
-                    amount
-                );
-                assert(restriction == 0, 'Transfer restricted by rules');
-            }
-            
             self.erc20._burn(from, amount);
         }
 
