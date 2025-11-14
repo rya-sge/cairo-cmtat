@@ -23,7 +23,7 @@ mod LightCMTAT {
     impl AccessControlInternalImpl = AccessControlComponent::InternalImpl<ContractState>;
 
     const MINTER_ROLE: felt252 = 'MINTER';
-    const BURNER_ROLE: felt252 = 'BURNER';
+    const PAUSER_ROLE: felt252 = 'PAUSER';
     const ENFORCER_ROLE: felt252 = 'ENFORCER';
 
     #[storage]
@@ -34,12 +34,13 @@ mod LightCMTAT {
         access_control: AccessControlComponent::Storage,
         #[substorage(v0)]
         src5: SRC5Component::Storage,
-        terms: felt252,
+        terms: ByteArray,
+        information: ByteArray,
+        token_id: ByteArray,
         // Core CMTAT compliance fields
         paused: bool,
         deactivated: bool,
         frozen_addresses: LegacyMap<ContractAddress, bool>,
-        frozen_tokens: LegacyMap<ContractAddress, u256>,
     }
 
     #[event]
@@ -52,20 +53,31 @@ mod LightCMTAT {
         #[flat]
         SRC5Event: SRC5Component::Event,
         TermsSet: TermsSet,
+        InformationSet: InformationSet,
+        TokenIdSet: TokenIdSet,
         Paused: Paused,
         Unpaused: Unpaused,
         Deactivated: Deactivated,
         AddressFrozen: AddressFrozen,
         AddressUnfrozen: AddressUnfrozen,
-        TokensFrozen: TokensFrozen,
-        TokensUnfrozen: TokensUnfrozen,
-        ForcedTransfer: ForcedTransfer,
+        ForcedBurn: ForcedBurn,
+        Mint: Mint,
+        Burn: Burn,
     }
 
     #[derive(Drop, starknet::Event)]
     struct TermsSet {
-        pub previous_terms: felt252,
-        pub new_terms: felt252,
+        pub new_terms: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct InformationSet {
+        pub new_information: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct TokenIdSet {
+        pub new_token_id: ByteArray,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -96,17 +108,25 @@ mod LightCMTAT {
     }
 
     #[derive(Drop, starknet::Event)]
-    struct TokensFrozen {
+    struct ForcedBurn {
         #[key]
-        pub account: ContractAddress,
-        pub amount: u256,
+        pub from: ContractAddress,
+        pub value: u256,
+        pub admin: ContractAddress,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct TokensUnfrozen {
+    struct Mint {
         #[key]
-        pub account: ContractAddress,
-        pub amount: u256,
+        pub to: ContractAddress,
+        pub value: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Burn {
+        #[key]
+        pub from: ContractAddress,
+        pub value: u256,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -134,10 +154,12 @@ mod LightCMTAT {
 
         self.access_control._grant_role(DEFAULT_ADMIN_ROLE, admin);
         self.access_control._grant_role(MINTER_ROLE, admin);
-        self.access_control._grant_role(BURNER_ROLE, admin);
+        self.access_control._grant_role(PAUSER_ROLE, admin);
         self.access_control._grant_role(ENFORCER_ROLE, admin);
 
-        self.terms.write(terms);
+        self.terms.write("");
+        self.information.write("");
+        self.token_id.write("");
         self.paused.write(false);
         self.deactivated.write(false);
 
@@ -148,187 +170,232 @@ mod LightCMTAT {
 
     #[abi(embed_v0)]
     impl LightCMTATImpl of super::ILightCMTAT<ContractState> {
-        fn terms(self: @ContractState) -> felt252 {
+        // ============ Information Functions ============
+        fn terms(self: @ContractState) -> ByteArray {
             self.terms.read()
         }
 
-        fn set_terms(ref self: ContractState, new_terms: felt252) {
+        fn set_terms(ref self: ContractState, new_terms: ByteArray) {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
-            let previous_terms = self.terms.read();
-            self.terms.write(new_terms);
-            self.emit(TermsSet { previous_terms, new_terms });
+            self.terms.write(new_terms.clone());
+            self.emit(TermsSet { new_terms });
         }
 
-        /// Mint tokens to a specified address
-        /// 
-        /// # Core CMTAT Restrictions:
-        /// - Requires MINTER_ROLE permission
-        /// - Contract must not be paused
-        /// - Contract must not be deactivated
-        /// - Target address must not be frozen
-        /// 
-        /// # Arguments:
-        /// - `to`: Target address to receive tokens
-        /// - `amount`: Amount of tokens to mint
-        fn mint(ref self: ContractState, to: ContractAddress, amount: u256) {
+        fn information(self: @ContractState) -> ByteArray {
+            self.information.read()
+        }
+
+        fn set_information(ref self: ContractState, new_information: ByteArray) {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.information.write(new_information.clone());
+            self.emit(InformationSet { new_information });
+        }
+
+        fn token_id(self: @ContractState) -> ByteArray {
+            self.token_id.read()
+        }
+
+        fn set_token_id(ref self: ContractState, new_token_id: ByteArray) {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.token_id.write(new_token_id.clone());
+            self.emit(TokenIdSet { new_token_id });
+        }
+
+        // ============ Batch Balance Query ============
+        fn batch_balance_of(self: @ContractState, accounts: Span<ContractAddress>) -> Array<u256> {
+            let mut balances = ArrayTrait::new();
+            let mut i: u32 = 0;
+            loop {
+                if i >= accounts.len() {
+                    break;
+                }
+                let account = *accounts.at(i);
+                balances.append(self.erc20.balance_of(account));
+                i += 1;
+            };
+            balances
+        }
+
+        // ============ Role Getters ============
+        fn get_default_admin_role(self: @ContractState) -> felt252 {
+            DEFAULT_ADMIN_ROLE
+        }
+
+        fn get_minter_role(self: @ContractState) -> felt252 {
+            MINTER_ROLE
+        }
+
+        fn get_pauser_role(self: @ContractState) -> felt252 {
+            PAUSER_ROLE
+        }
+
+        fn get_enforcer_role(self: @ContractState) -> felt252 {
+            ENFORCER_ROLE
+        }
+
+        // ============ Version ============
+        fn version(self: @ContractState) -> ByteArray {
+            "2.0.0"
+        }
+
+        // ============ Minting Functions ============
+        fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.is_paused(), 'Contract is paused');
-            assert(!self.is_deactivated(), 'Contract is deactivated');
-            assert(!self.is_frozen(to), 'Address is frozen');
-            self.erc20._mint(to, amount);
+            assert(!self.paused(), 'Contract is paused');
+            self.erc20._mint(to, value);
+            self.emit(Mint { to, value });
+            true
         }
 
-        /// Burn tokens from a specified address
-        /// 
-        /// # Core CMTAT Restrictions:
-        /// - Requires BURNER_ROLE permission
-        /// - Contract must not be paused
-        /// - Contract must not be deactivated
-        /// - Must have sufficient active balance (unfrozen tokens)
-        /// 
-        /// # Arguments:
-        /// - `from`: Address to burn tokens from
-        /// - `amount`: Amount of tokens to burn
-        fn burn(ref self: ContractState, from: ContractAddress, amount: u256) {
-            self.access_control.assert_only_role(BURNER_ROLE);
-            assert(!self.is_paused(), 'Contract is paused');
-            assert(!self.is_deactivated(), 'Contract is deactivated');
-            let active_balance = self.active_balance_of(from);
-            assert(active_balance >= amount, 'Insufficient active balance');
-            self.erc20._burn(from, amount);
+        fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
+            self.access_control.assert_only_role(MINTER_ROLE);
+            assert(!self.paused(), 'Contract is paused');
+            assert(tos.len() == values.len(), 'Arrays length mismatch');
+            
+            let mut i: u32 = 0;
+            loop {
+                if i >= tos.len() {
+                    break;
+                }
+                let to = *tos.at(i);
+                let value = *values.at(i);
+                self.erc20._mint(to, value);
+                self.emit(Mint { to, value });
+                i += 1;
+            };
+            true
         }
 
-        // Pause/Unpause functionality (core CMTAT requirement)
-        fn is_paused(self: @ContractState) -> bool {
+        // ============ Burning Functions ============
+        fn burn(ref self: ContractState, value: u256) -> bool {
+            let from = get_caller_address();
+            assert(!self.paused(), 'Contract is paused');
+            self.erc20._burn(from, value);
+            self.emit(Burn { from, value });
+            true
+        }
+
+        fn burn_from(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
+            assert(!self.paused(), 'Contract is paused');
+            let spender = get_caller_address();
+            self.erc20._spend_allowance(from, spender, value);
+            self.erc20._burn(from, value);
+            self.emit(Burn { from, value });
+            true
+        }
+
+        fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            assert(!self.paused(), 'Contract is paused');
+            assert(accounts.len() == values.len(), 'Arrays length mismatch');
+            
+            let mut i: u32 = 0;
+            loop {
+                if i >= accounts.len() {
+                    break;
+                }
+                let from = *accounts.at(i);
+                let value = *values.at(i);
+                self.erc20._burn(from, value);
+                self.emit(Burn { from, value });
+                i += 1;
+            };
+            true
+        }
+
+        fn forced_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.erc20._burn(from, value);
+            self.emit(ForcedBurn { from, value, admin: get_caller_address() });
+            true
+        }
+
+        fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
+            self.access_control.assert_only_role(MINTER_ROLE);
+            assert(!self.paused(), 'Contract is paused');
+            self.erc20._burn(from, value);
+            self.emit(Burn { from, value });
+            self.erc20._mint(to, value);
+            self.emit(Mint { to, value });
+            true
+        }
+
+        // ============ Pause Functions ============
+        fn paused(self: @ContractState) -> bool {
             self.paused.read()
         }
 
-        fn pause(ref self: ContractState) {
-            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+        fn pause(ref self: ContractState) -> bool {
+            self.access_control.assert_only_role(PAUSER_ROLE);
             self.paused.write(true);
             self.emit(Paused { account: get_caller_address() });
+            true
         }
 
-        fn unpause(ref self: ContractState) {
-            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+        fn unpause(ref self: ContractState) -> bool {
+            self.access_control.assert_only_role(PAUSER_ROLE);
             self.paused.write(false);
             self.emit(Unpaused { account: get_caller_address() });
+            true
         }
 
-        // Deactivation functionality (core CMTAT requirement)
-        fn is_deactivated(self: @ContractState) -> bool {
+        fn deactivated(self: @ContractState) -> bool {
             self.deactivated.read()
         }
 
-        fn deactivate_contract(ref self: ContractState) {
+        fn deactivate_contract(ref self: ContractState) -> bool {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            assert(self.paused.read(), 'Must pause before deactivate');
             self.deactivated.write(true);
             self.emit(Deactivated { account: get_caller_address() });
+            true
         }
 
-        // Address freezing (core CMTAT requirement)
-        fn freeze_address(ref self: ContractState, account: ContractAddress) {
+        // ============ Freezing Functions ============
+        fn set_address_frozen(ref self: ContractState, account: ContractAddress, is_frozen: bool) -> bool {
             self.access_control.assert_only_role(ENFORCER_ROLE);
-            self.frozen_addresses.write(account, true);
-            self.emit(AddressFrozen { account });
+            self.frozen_addresses.write(account, is_frozen);
+            if is_frozen {
+                self.emit(AddressFrozen { account });
+            } else {
+                self.emit(AddressUnfrozen { account });
+            }
+            true
         }
 
-        fn unfreeze_address(ref self: ContractState, account: ContractAddress) {
+        fn batch_set_address_frozen(ref self: ContractState, accounts: Span<ContractAddress>, frozen: Span<bool>) -> bool {
             self.access_control.assert_only_role(ENFORCER_ROLE);
-            self.frozen_addresses.write(account, false);
-            self.emit(AddressUnfrozen { account });
+            assert(accounts.len() == frozen.len(), 'Arrays length mismatch');
+            
+            let mut i: u32 = 0;
+            loop {
+                if i >= accounts.len() {
+                    break;
+                }
+                let account = *accounts.at(i);
+                let is_frozen = *frozen.at(i);
+                self.frozen_addresses.write(account, is_frozen);
+                if is_frozen {
+                    self.emit(AddressFrozen { account });
+                } else {
+                    self.emit(AddressUnfrozen { account });
+                }
+                i += 1;
+            };
+            true
         }
 
         fn is_frozen(self: @ContractState, account: ContractAddress) -> bool {
             self.frozen_addresses.read(account)
         }
 
-        // Token freezing functionality (core CMTAT requirement)
-        fn get_frozen_tokens(self: @ContractState, account: ContractAddress) -> u256 {
-            self.frozen_tokens.read(account)
-        }
-
-        fn freeze_tokens(ref self: ContractState, account: ContractAddress, amount: u256) {
-            self.access_control.assert_only_role(ENFORCER_ROLE);
-            let current_frozen = self.frozen_tokens.read(account);
-            self.frozen_tokens.write(account, current_frozen + amount);
-            self.emit(TokensFrozen { account, amount });
-        }
-
-        fn unfreeze_tokens(ref self: ContractState, account: ContractAddress, amount: u256) {
-            self.access_control.assert_only_role(ENFORCER_ROLE);
-            let current_frozen = self.frozen_tokens.read(account);
-            assert(current_frozen >= amount, 'Insufficient frozen tokens');
-            self.frozen_tokens.write(account, current_frozen - amount);
-            self.emit(TokensUnfrozen { account, amount });
-        }
-
-        fn active_balance_of(self: @ContractState, account: ContractAddress) -> u256 {
-            let total_balance = self.erc20.balance_of(account);
-            let frozen_amount = self.frozen_tokens.read(account);
-            if total_balance >= frozen_amount {
-                total_balance - frozen_amount
-            } else {
-                0
-            }
-        }
-
+        // ============ Utility Functions ============
         fn token_type(self: @ContractState) -> ByteArray {
             "Light CMTAT"
         }
-
-        /// Force transfer tokens between addresses bypassing normal restrictions
-        /// 
-        /// This is an emergency administrative function that bypasses normal transfer
-        /// restrictions including address freezes and token freezes. It should only
-        /// be used for regulatory compliance, court orders, or emergency situations.
-        /// 
-        /// # Core CMTAT Requirements:
-        /// - Requires DEFAULT_ADMIN_ROLE permission (highest authority)
-        /// - Contract must not be deactivated
-        /// - Automatically unfreezes necessary tokens for the transfer
-        /// 
-        /// # Arguments:
-        /// - `from`: Source address to transfer tokens from
-        /// - `to`: Target address to transfer tokens to
-        /// - `amount`: Amount of tokens to force transfer
-        /// 
-        /// # Returns:
-        /// - `bool`: true if transfer was successful
-        fn forced_transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool {
-            // Only admin can perform forced transfers
-            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
-            
-            // Cannot perform operations on deactivated contracts
-            assert(!self.is_deactivated(), 'Contract is deactivated');
-            
-            // Validate sufficient total balance
-            let total_balance = self.erc20.balance_of(from);
-            assert(total_balance >= amount, 'Insufficient total balance');
-            
-            // If tokens are frozen, automatically unfreeze the required amount
-            let frozen_amount = self.frozen_tokens.read(from);
-            if frozen_amount > 0 {
-                let active_balance = total_balance - frozen_amount;
-                if active_balance < amount {
-                    let unfreeze_needed = amount - active_balance;
-                    let to_unfreeze = if unfreeze_needed > frozen_amount { frozen_amount } else { unfreeze_needed };
-                    self.frozen_tokens.write(from, frozen_amount - to_unfreeze);
-                    self.emit(TokensUnfrozen { account: from, amount: to_unfreeze });
-                }
-            }
-            
-            // Perform the transfer using internal ERC20 function (bypasses hooks)
-            self.erc20._transfer(from, to, amount);
-            
-            // Emit forced transfer event for compliance tracking
-            self.emit(ForcedTransfer { from, to, amount, enforcer: get_caller_address() });
-            
-            true
-        }
     }
 
-    // Internal transfer hook implementation for core CMTAT compliance
+    // ERC20 Hooks for transfer restrictions
     impl ERC20HooksImpl of ERC20Component::ERC20HooksTrait<ContractState> {
         fn before_update(
             ref self: ERC20Component::ComponentState<ContractState>,
@@ -337,22 +404,13 @@ mod LightCMTAT {
             amount: u256
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
+            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
 
-            // Core CMTAT compliance checks for transfers (not mint/burn)
-            if from != starknet::contract_address_const::<0>() && recipient != starknet::contract_address_const::<0>() {
-                // Check pause state
-                assert(!contract_state.is_paused(), 'Contract is paused');
-                
-                // Check deactivation
-                assert(!contract_state.is_deactivated(), 'Contract is deactivated');
-                
-                // Check if addresses are frozen
-                assert(!contract_state.is_frozen(from), 'Sender address is frozen');
-                assert(!contract_state.is_frozen(recipient), 'Recipient address is frozen');
-                
-                // Check active balance
-                let active_balance = contract_state.active_balance_of(from);
-                assert(active_balance >= amount, 'Insufficient active balance');
+            // Only check transfers (not mint/burn)
+            if from != zero_address && recipient != zero_address {
+                assert(!contract_state.paused.read(), 'Contract is paused');
+                assert(!contract_state.is_frozen(from), 'Sender frozen');
+                assert(!contract_state.is_frozen(recipient), 'Recipient frozen');
             }
         }
 
@@ -361,35 +419,55 @@ mod LightCMTAT {
             from: ContractAddress,
             recipient: ContractAddress,
             amount: u256
-        ) {
-            // No post-transfer logic needed for Light CMTAT
-        }
+        ) {}
     }
 }
 
 #[starknet::interface]
 trait ILightCMTAT<TContractState> {
-    fn terms(self: @TContractState) -> felt252;
-    fn set_terms(ref self: TContractState, new_terms: felt252);
-    fn mint(ref self: TContractState, to: ContractAddress, amount: u256);
-    fn burn(ref self: TContractState, from: ContractAddress, amount: u256);
-    // Pause functionality
-    fn is_paused(self: @TContractState) -> bool;
-    fn pause(ref self: TContractState);
-    fn unpause(ref self: TContractState);
-    // Deactivation functionality
-    fn is_deactivated(self: @TContractState) -> bool;
-    fn deactivate_contract(ref self: TContractState);
-    // Address freezing
-    fn freeze_address(ref self: TContractState, account: ContractAddress);
-    fn unfreeze_address(ref self: TContractState, account: ContractAddress);
+    // Information
+    fn terms(self: @TContractState) -> ByteArray;
+    fn set_terms(ref self: TContractState, new_terms: ByteArray);
+    fn information(self: @TContractState) -> ByteArray;
+    fn set_information(ref self: TContractState, new_information: ByteArray);
+    fn token_id(self: @TContractState) -> ByteArray;
+    fn set_token_id(ref self: TContractState, new_token_id: ByteArray);
+    
+    // Balance queries
+    fn batch_balance_of(self: @TContractState, accounts: Span<ContractAddress>) -> Array<u256>;
+    
+    // Role getters
+    fn get_default_admin_role(self: @TContractState) -> felt252;
+    fn get_minter_role(self: @TContractState) -> felt252;
+    fn get_pauser_role(self: @TContractState) -> felt252;
+    fn get_enforcer_role(self: @TContractState) -> felt252;
+    
+    // Version
+    fn version(self: @TContractState) -> ByteArray;
+    
+    // Minting
+    fn mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
+    fn batch_mint(ref self: TContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool;
+    
+    // Burning
+    fn burn(ref self: TContractState, value: u256) -> bool;
+    fn burn_from(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
+    fn batch_burn(ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool;
+    fn forced_burn(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
+    fn burn_and_mint(ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool;
+    
+    // Pause
+    fn paused(self: @TContractState) -> bool;
+    fn pause(ref self: TContractState) -> bool;
+    fn unpause(ref self: TContractState) -> bool;
+    fn deactivated(self: @TContractState) -> bool;
+    fn deactivate_contract(ref self: TContractState) -> bool;
+    
+    // Freezing
+    fn set_address_frozen(ref self: TContractState, account: ContractAddress, is_frozen: bool) -> bool;
+    fn batch_set_address_frozen(ref self: TContractState, accounts: Span<ContractAddress>, frozen: Span<bool>) -> bool;
     fn is_frozen(self: @TContractState, account: ContractAddress) -> bool;
-    // Token freezing
-    fn get_frozen_tokens(self: @TContractState, account: ContractAddress) -> u256;
-    fn freeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
-    fn unfreeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
-    fn active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    
+    // Utility
     fn token_type(self: @TContractState) -> ByteArray;
-    // Force transfer
-    fn forced_transfer(ref self: TContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool;
 }
