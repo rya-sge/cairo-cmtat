@@ -36,6 +36,10 @@ mod WhitelistRuleEngine {
     use super::IRuleEngine;
     use openzeppelin::access::ownable::OwnableComponent;
     use starknet::{ContractAddress, get_caller_address};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
 

@@ -5,10 +5,14 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod DebtCMTAT {
-    use openzeppelin::token::erc20::{ERC20Component};
+    use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
     use starknet::{ContractAddress, get_caller_address};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
@@ -223,7 +227,7 @@ mod DebtCMTAT {
         self.debt_engine.write(starknet::contract_address_const::<0>());
 
         if initial_supply > 0 {
-            self.erc20._mint(recipient, initial_supply);
+            self.erc20.mint(recipient, initial_supply);
         }
     }
 
@@ -328,7 +332,7 @@ mod DebtCMTAT {
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -345,7 +349,7 @@ mod DebtCMTAT {
                 }
                 let to = *tos.at(i);
                 let value = *values.at(i);
-                self.erc20._mint(to, value);
+                self.erc20.mint(to, value);
                 self.emit(Mint { to, value });
                 i += 1;
             };
@@ -364,9 +368,9 @@ mod DebtCMTAT {
             let active_balance = self.get_active_balance_of(from);
             assert(active_balance >= value, 'Insufficient active balance');
             
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -376,7 +380,7 @@ mod DebtCMTAT {
             let from = get_caller_address();
             assert(!self.paused(), 'Contract is paused');
             assert(!self.is_frozen(from), 'Sender frozen');
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -386,7 +390,7 @@ mod DebtCMTAT {
             assert(!self.is_frozen(from), 'Sender frozen');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -404,7 +408,7 @@ mod DebtCMTAT {
                 let from = *accounts.at(i);
                 let value = *values.at(i);
                 assert(!self.is_frozen(from), 'Sender frozen');
-                self.erc20._burn(from, value);
+                self.erc20.burn(from, value);
                 self.emit(Burn { from, value });
                 i += 1;
             };
