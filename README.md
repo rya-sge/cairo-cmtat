@@ -1,30 +1,29 @@
-# Cairo CMTAT - Regulated Securities on Starknet
+# CMTAT implementation for Starknet (Cairo)
 
-A comprehensive implementation of CMTAT (Capital Markets and Technology Association Token) standard in Cairo for Starknet, featuring **full ABI compatibility** with Solidity CMTAT implementation.
+> This project has not undergone an audit and is provided as-is without any warranties.
 
-## 🎯 Features
+[CMTAT](https://cmta.ch/standards/cmta-token-cmtat) is a framework for the tokenization of securities and other financial instruments in compliance with local regulations. This project implements a CMTAT version in Cairo allowing financial institutions to adopt the standard on Starknet.
 
-- ✅ **100% Solidity ABI Compatible** - Exact function signatures matching Solidity CMTAT
-- ✅ **Four Module Variants** - Light, Allowlist, Debt, and Standard implementations
-- ✅ **ERC20 Compliance** with regulatory extensions
-- ✅ **Role-Based Access Control** with role getter functions
-- ✅ **Batch Operations** for efficient multi-address operations
-- ✅ **Cross-Chain Support** (Standard module)
-- ✅ **Transfer Validation** (ERC-1404 compatible)
-- ✅ **Meta-Transaction Support** (Allowlist & Standard modules)
-- ✅ **OpenZeppelin Components** for security and reliability
+This implementation is based on the [Solidity version](https://github.com/CMTA/CMTAT) [is available]().
 
-## 🚀 Quick Start
+## Features
+
+- **100% Solidity ABI Compatible** - Exact function signatures matching Solidity CMTAT
+- **Four Module Variants** - Light, Allowlist, Debt, and Standard implementations
+-  **ERC20 Compliance** with regulatory extensions
+- **Role-Based Access Control** with role getter functions
+- **Batch Operations** for efficient multi-address operations
+- **Cross-Chain Support** (Standard module)
+- **Transfer Validation** (ERC-1404 compatible)
+- **Meta-Transaction Support** (Allowlist & Standard modules)
+- **OpenZeppelin Components** for security and reliability
+
+## Quick Start
 
 ### Prerequisites
-```bash
-# Install Scarb (Cairo package manager)
-curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
+Install `scarb`, a toolchain and package manager for Cairo and Starknet ecosystems. 
 
-# Install Starkli (Starknet CLI)
-curl https://get.starkli.sh | sh
-starkliup
-```
+See [docs.swmansion.com/scarb/](https://docs.swmansion.com/scarb/)
 
 ### Build & Test
 ```bash
@@ -41,9 +40,9 @@ scarb test
 ./scripts/deploy.sh
 ```
 
-## 📋 Module Overview
+## Module Overview
 
-### 🪶 Light CMTAT
+### Light CMTAT
 **Minimal feature set for basic CMTAT compliance**
 
 **Constructor:**
@@ -58,20 +57,20 @@ constructor(
 ```
 
 **Features:**
-- ✅ Basic ERC20 functionality
-- ✅ Minting (mint, batch_mint)
-- ✅ Burning (burn, burn_from, batch_burn, forced_burn, burn_and_mint)
-- ✅ Pause/Unpause/Deactivate
-- ✅ Address freezing (set_address_frozen, batch_set_address_frozen)
-- ✅ Information management (terms, information, token_id)
-- ✅ Batch balance queries
-- ✅ 4 Role constants (DEFAULT_ADMIN, MINTER, PAUSER, ENFORCER)
+- Basic ERC20 functionality
+- Minting (mint, batch_mint)
+- Burning (burn, burn_from, batch_burn, forced_burn, burn_and_mint)
+- Pause/Unpause/Deactivate
+- Address freezing (set_address_frozen, batch_set_address_frozen)
+- Information management (terms, information, token_id)
+- Batch balance queries
+- 4 Role constants (DEFAULT_ADMIN, MINTER, PAUSER, ENFORCER)
 
 **Use Cases:** Standard token deployments, simple compliance requirements
 
 ---
 
-### ✅ Allowlist CMTAT
+### Allowlist CMTAT
 **All Light features plus allowlist functionality**
 
 **Constructor:**
@@ -87,18 +86,18 @@ constructor(
 ```
 
 **Additional Features:**
-- ✅ Allowlist control (enable_allowlist, set_address_allowlist, batch_set_address_allowlist)
-- ✅ Partial token freezing (freeze_partial_tokens, unfreeze_partial_tokens)
-- ✅ Active balance queries (get_active_balance_of)
-- ✅ Engine management (snapshot_engine, document_engine)
-- ✅ Meta-transaction support (is_trusted_forwarder)
-- ✅ 9 Role constants (includes ERC20ENFORCER, SNAPSHOOTER, DOCUMENT, EXTRA_INFORMATION)
+- Allowlist control (enable_allowlist, set_address_allowlist, batch_set_address_allowlist)
+-  Partial token freezing (freeze_partial_tokens, unfreeze_partial_tokens)
+- Active balance queries (get_active_balance_of)
+- Engine management (snapshot_engine, document_engine)
+- Meta-transaction support (is_trusted_forwarder)
+- 9 Role constants (includes ERC20ENFORCER, SNAPSHOOTER, DOCUMENT, EXTRA_INFORMATION)
 
 **Use Cases:** Regulated tokens with whitelist requirements, KYC/AML compliance
 
 ---
 
-### 💰 Debt CMTAT
+### Debt CMTAT
 **Specialized for debt securities**
 
 **Constructor:**
@@ -113,18 +112,18 @@ constructor(
 ```
 
 **Debt-Specific Features:**
-- ✅ Debt information management (debt, set_debt)
-- ✅ Credit events tracking (credit_events, set_credit_events)
-- ✅ Debt engine integration (debt_engine, set_debt_engine)
-- ✅ Default flagging (flag_default)
-- ✅ All Allowlist features (except allowlist-specific)
-- ✅ 10 Role constants (includes DEBT_ROLE)
+- Debt information management (debt, set_debt)
+- Credit events tracking (credit_events, set_credit_events)
+- Debt engine integration (debt_engine, set_debt_engine)
+- Default flagging (flag_default)
+- All Allowlist features (except allowlist-specific)
+- 10 Role constants (includes DEBT_ROLE)
 
 **Use Cases:** Corporate bonds, structured debt products, fixed income securities
 
 ---
 
-### ⭐ Standard CMTAT
+### Standard CMTAT
 **Full feature set with cross-chain support**
 
 **Constructor:**
@@ -140,19 +139,19 @@ constructor(
 ```
 
 **Advanced Features:**
-- ✅ Cross-chain operations (crosschain_mint, crosschain_burn)
-- ✅ Transfer validation (restriction_code, message_for_transfer_restriction)
-- ✅ ERC-1404 compliance
-- ✅ All core CMTAT features
-- ✅ 10 Role constants (includes CROSS_CHAIN_ROLE)
+- Cross-chain operations (crosschain_mint, crosschain_burn)
+- Transfer validation (restriction_code, message_for_transfer_restriction)
+- ERC-1404 compliance
+-  All core CMTAT features
+- 10 Role constants (includes CROSS_CHAIN_ROLE)
 
 **Use Cases:** Multi-chain deployments, advanced compliance, institutional securities
 
 ---
 
-## 🔧 ABI Compatibility
+## ABI Compatibility
 
-All modules are **100% compatible** with the Solidity CMTAT ABI specification:
+Here is the list of implemented functions.
 
 ### Common Functions (All Modules)
 
@@ -233,7 +232,7 @@ fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) 
 
 ---
 
-## 📊 Feature Comparison Matrix
+## Feature Comparison Matrix
 
 | Feature | Light | Allowlist | Debt | Standard |
 |---------|-------|-----------|------|----------|
@@ -257,7 +256,7 @@ fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) 
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 cairo-cmtat/
@@ -280,7 +279,7 @@ cairo-cmtat/
 
 ---
 
-## 💼 Use Cases & Examples
+## Use Cases & Examples
 
 ### Regulatory Compliant Token
 ```cairo
@@ -343,7 +342,7 @@ standard_cmtat.crosschain_burn(user, 1000 * 10^18);
 
 ---
 
-## 🔐 Security Features
+## Security Features
 
 ### Role-Based Access Control
 - **DEFAULT_ADMIN_ROLE**: Master administrator, can grant/revoke all roles
@@ -367,7 +366,7 @@ All modules implement transfer restrictions via ERC20 hooks:
 
 ---
 
-## 📝 Deployment Guide
+## Deployment Guide
 
 ### Step 1: Build Contracts
 ```bash
@@ -393,7 +392,7 @@ The script will:
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -408,7 +407,7 @@ scarb test --verbose
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 ### Technical Specifications
 - [CMTAT Whitepaper](https://www.cmtat.org/)
@@ -420,12 +419,13 @@ Full API documentation for all modules available in-code documentation.
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
-- Cairo 2.6.3+
-- Scarb 2.6.4+
-- OpenZeppelin Cairo 0.13.0
+- Cairo 2.13.1
+- Scarb 2.13.1
+- Sierra: 1.7.0
+- OpenZeppelin Cairo [v2.0.0](https://github.com/OpenZeppelin/cairo-contracts/releases/tag/v2.0.0)
 
 ### Project Structure
 ```
@@ -438,7 +438,7 @@ scripts/          # Deployment scripts
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please follow these guidelines:
 1. Fork the repository
@@ -449,13 +449,13 @@ Contributions are welcome! Please follow these guidelines:
 
 ---
 
-## 📜 License
+## License
 
 Mozilla Public License 2.0 (MPL-2.0)
 
 ---
 
-## 🔗 Links
+## Links
 
 - **Starknet**: https://starknet.io
 - **CMTAT**: https://www.cmtat.org
@@ -463,6 +463,6 @@ Mozilla Public License 2.0 (MPL-2.0)
 
 ---
 
-**Built for compliant securities on Starknet 🚀**
+**Built for compliant securities on Starknet**
 
-*Version 2.0.0 - ABI Compatible Implementation*
+*Version 0.1.0 - ABI Compatible Implementation*
