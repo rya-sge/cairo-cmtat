@@ -44,7 +44,7 @@ mod LightCMTAT {
         // Core CMTAT compliance fields
         paused: bool,
         deactivated: bool,
-        frozen_addresses: LegacyMap<ContractAddress, bool>,
+        frozen_addresses: Map<ContractAddress, bool>,
     }
 
     #[event]

@@ -88,10 +88,10 @@ mod AllowlistCMTAT {
         deactivated: bool,
         // Allowlist storage
         allowlist_enabled: bool,
-        allowlist: LegacyMap<ContractAddress, bool>,
+        allowlist: Map<ContractAddress, bool>,
         // Partial token freezing
-        frozen_addresses: LegacyMap<ContractAddress, bool>,
-        frozen_tokens: LegacyMap<ContractAddress, u256>,
+        frozen_addresses: Map<ContractAddress, bool>,
+        frozen_tokens: Map<ContractAddress, u256>,
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,

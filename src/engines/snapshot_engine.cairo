@@ -69,11 +69,11 @@ mod SimpleSnapshotEngine {
         // Snapshot ID counter
         next_snapshot_id: u64,
         // snapshot_id => Snapshot data
-        snapshots: LegacyMap<u64, Snapshot>,
+        snapshots: Map<u64, Snapshot>,
         // snapshot_id => account => balance
-        balances_at_snapshot: LegacyMap<(u64, ContractAddress), u256>,
+        balances_at_snapshot: Map<(u64, ContractAddress), u256>,
         // Scheduled snapshots: timestamp => snapshot_id
-        scheduled_snapshots: LegacyMap<u64, u64>,
+        scheduled_snapshots: Map<u64, u64>,
     }
 
     #[event]

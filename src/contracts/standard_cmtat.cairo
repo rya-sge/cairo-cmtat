@@ -52,8 +52,8 @@ mod StandardCMTAT {
         token_id: ByteArray,
         paused: bool,
         deactivated: bool,
-        frozen_addresses: LegacyMap<ContractAddress, bool>,
-        frozen_tokens: LegacyMap<ContractAddress, u256>,
+        frozen_addresses: Map<ContractAddress, bool>,
+        frozen_tokens: Map<ContractAddress, u256>,
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,
