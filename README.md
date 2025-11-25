@@ -4,11 +4,11 @@
 
 [CMTAT](https://cmta.ch/standards/cmta-token-cmtat) is a framework for the tokenization of securities and other financial instruments in compliance with local regulations. This project implements a CMTAT version in Cairo allowing financial institutions to adopt the standard on Starknet.
 
-This implementation is based on the [Solidity version](https://github.com/CMTA/CMTAT) [is available]().
+This implementation is based on the [Solidity version](https://github.com/CMTA/CMTAT).
 
 ## Features
 
-- **100% Solidity ABI Compatible** - Exact function signatures matching Solidity CMTAT
+- **CMTAT framework implementation**
 - **Four Module Variants** - Light, Allowlist, Debt, and Standard implementations
 -  **ERC20 Compliance** with regulatory extensions
 - **Role-Based Access Control** with role getter functions
@@ -457,9 +457,9 @@ Mozilla Public License 2.0 (MPL-2.0)
 
 ## Links
 
-- **Starknet**: https://starknet.io
-- **CMTAT**: https://www.cmtat.org
-- **OpenZeppelin Cairo**: https://github.com/OpenZeppelin/cairo-contracts
+- **Starknet**: [https://starknet.io](https://starknet.io)
+- **CMTAT**: [https://www.cmtat.org](https://www.cmtat.org)
+- **OpenZeppelin Cairo**: [https://github.com/OpenZeppelin/cairo-contracts](https://github.com/OpenZeppelin/cairo-contracts)
 
 ---
 
