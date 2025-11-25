@@ -1,6 +1,6 @@
 [package]
 name = "cairo_cmtat"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2024_07"
 description = "Comprehensive CMTAT implementation in Cairo for Starknet"
 license = "MPL-2.0"

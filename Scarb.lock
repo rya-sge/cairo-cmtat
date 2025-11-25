@@ -3,7 +3,7 @@ version = 1
 
 [[package]]
 name = "cairo_cmtat"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "openzeppelin",
  "snforge_std",

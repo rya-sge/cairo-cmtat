@@ -240,7 +240,7 @@ mod LightCMTAT {
 
         // ============ Version ============
         fn version(self: @ContractState) -> ByteArray {
-            "2.0.0"
+            "0.1.0"
         }
 
         // ============ Minting Functions ============
