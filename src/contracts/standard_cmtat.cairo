@@ -62,6 +62,18 @@ mod StandardCMTAT {
         trusted_forwarder: ContractAddress,
     }
 
+    #[derive(Drop, Serde, PartialEq)]
+    pub enum RESTRICTION_CODE {
+        TRANSFER_OK,
+        TRANSFER_REJECTED_DEACTIVATED,
+        TRANSFER_REJECTED_PAUSED,
+        TRANSFER_REJECTED_FROM_FROZEN,
+        TRANSFER_REJECTED_TO_FROZEN,
+        TRANSFER_REJECTED_SPENDER_FROZEN,
+        TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE
+    }
+
+
     #[event]
     #[derive(Drop, starknet::Event)]
     enum Event {
@@ -485,50 +497,49 @@ mod StandardCMTAT {
         }
 
         // ============ Transfer Validation ============
-        fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> u8 {
-            // Check if contract is paused
-            if self.paused() {
-                return 2; // Contract paused
-            }
-
+        fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> RESTRICTION_CODE {
             // Check if contract is deactivated
             if self.deactivated() {
-                return 3; // Contract deactivated
+                return RESTRICTION_CODE::TRANSFER_REJECTED_DEACTIVATED; // Contract deactivated
+            }
+
+            // Check if contract is paused
+            if self.paused() {
+                return RESTRICTION_CODE::TRANSFER_REJECTED_PAUSED; // Contract paused
             }
 
             // Check if addresses are frozen
-            if self.is_frozen(from) || self.is_frozen(to) {
-                return 1; // Address frozen
+            if self.is_frozen(from) {
+                return RESTRICTION_CODE::TRANSFER_REJECTED_FROM_FROZEN; 
+            }
+
+            if self.is_frozen(to) {
+                return RESTRICTION_CODE::TRANSFER_REJECTED_TO_FROZEN; 
             }
 
             // Check active balance for sender (only if not a mint operation)
             if from != Zero::zero() {
                 let active_balance = self.get_active_balance_of(from);
                 if active_balance < value {
-                    return 4; // Insufficient active balance
+                    // Insufficient active balance
+                    return RESTRICTION_CODE::TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE; 
                 }
             }
-
-            0 // No restriction
+            
+            // No restriction
+            RESTRICTION_CODE::TRANSFER_OK 
         }
 
-        fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) -> ByteArray {
-            if restriction_code == 0 {
-                return "No restriction";
+        fn message_for_transfer_restriction(self: @ContractState, restriction_code: RESTRICTION_CODE) -> ByteArray {
+            match restriction_code {
+                RESTRICTION_CODE::TRANSFER_OK => { return "No restriction"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_DEACTIVATED => { return "Contract is deactivated"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_PAUSED => { return "Contract is paused"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_TO_FROZEN => { return "Address To is frozen"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_FROM_FROZEN => { return "Address From is frozen"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_SPENDER_FROZEN => { return "Spender is frozen"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE => { return "Insufficient active balance"; },
             }
-            if restriction_code == 1 {
-                return "Address is frozen";
-            }
-            if restriction_code == 2 {
-                return "Contract is paused";
-            }
-            if restriction_code == 3 {
-                return "Contract is deactivated";
-            }
-            if restriction_code == 4 {
-                return "Insufficient active balance";
-            }
-            "Unknown restriction"
         }
 
         // ============ Engine Management ============
@@ -577,7 +588,7 @@ mod StandardCMTAT {
             // Only check transfers (not mint/burn)
             if from != zero_address && recipient != zero_address {
                 let restriction = contract_state.restriction_code(from, recipient, amount);
-                assert(restriction == 0, 'Transfer restricted');
+                assert(restriction == RESTRICTION_CODE::TRANSFER_OK, 'Transfer restricted');
             }
         }
 
@@ -592,6 +603,7 @@ mod StandardCMTAT {
 
 #[starknet::interface]
 trait IStandardCMTAT<TContractState> {
+  
     // Information
     fn terms(self: @TContractState) -> ByteArray;
     fn set_terms(ref self: TContractState, new_terms: ByteArray) -> bool;
@@ -647,8 +659,8 @@ trait IStandardCMTAT<TContractState> {
     fn get_active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
     
     // Transfer Validation
-    fn restriction_code(self: @TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> u8;
-    fn message_for_transfer_restriction(self: @TContractState, restriction_code: u8) -> ByteArray;
+    fn restriction_code(self: @TContractState, from: ContractAddress, to: ContractAddress, value: u256) ->   StandardCMTAT::RESTRICTION_CODE;
+    fn message_for_transfer_restriction(self: @TContractState, restriction_code: StandardCMTAT::RESTRICTION_CODE) -> ByteArray;
     
     // Engines
     fn set_snapshot_engine(ref self: TContractState, snapshot_engine_: ContractAddress) -> bool;
