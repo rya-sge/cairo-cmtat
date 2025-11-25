@@ -5,6 +5,7 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod LightCMTAT {
+    use core::num::traits::{Zero};
     use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
@@ -408,7 +409,7 @@ mod LightCMTAT {
             amount: u256
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
-            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
+            let zero_address = Zero::zero();
 
             // Only check transfers (not mint/burn)
             if from != zero_address && recipient != zero_address {

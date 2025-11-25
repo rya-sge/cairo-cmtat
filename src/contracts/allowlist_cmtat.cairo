@@ -5,6 +5,7 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod AllowlistCMTAT {
+    use core::num::traits::{Zero};
     use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
@@ -41,7 +42,7 @@ mod AllowlistCMTAT {
                 return;
             }
             
-            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
+            let zero_address = Zero::zero();
             
             // Skip allowlist check for minting (from == 0) and burning (recipient == 0)
             if from != zero_address && recipient != zero_address {
@@ -260,8 +261,8 @@ mod AllowlistCMTAT {
         self.deactivated.write(false);
         self.allowlist_enabled.write(false);
         self.trusted_forwarder.write(forwarder_irrevocable);
-        self.snapshot_engine.write(starknet::contract_address_const::<0>());
-        self.document_engine.write(starknet::contract_address_const::<0>());
+        self.snapshot_engine.write(Zero::zero());
+        self.document_engine.write(Zero::zero());
 
         // Add recipient to allowlist if initial supply is provided
         if initial_supply > 0 {

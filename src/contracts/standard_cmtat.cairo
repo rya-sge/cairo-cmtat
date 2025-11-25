@@ -5,6 +5,7 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod StandardCMTAT {
+    use core::num::traits::{Zero};
     use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
@@ -184,8 +185,8 @@ mod StandardCMTAT {
         self.paused.write(false);
         self.deactivated.write(false);
         self.trusted_forwarder.write(forwarder_irrevocable);
-        self.snapshot_engine.write(starknet::contract_address_const::<0>());
-        self.document_engine.write(starknet::contract_address_const::<0>());
+        self.snapshot_engine.write(Zero::zero());
+        self.document_engine.write(Zero::zero());
 
         if initial_supply > 0 {
             self.erc20.mint(recipient, initial_supply);
@@ -501,7 +502,7 @@ mod StandardCMTAT {
             }
 
             // Check active balance for sender (only if not a mint operation)
-            if from != starknet::contract_address_const::<0>() {
+            if from != Zero::zero() {
                 let active_balance = self.get_active_balance_of(from);
                 if active_balance < value {
                     return 4; // Insufficient active balance
@@ -571,7 +572,7 @@ mod StandardCMTAT {
             amount: u256
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
-            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
+            let zero_address: ContractAddress = Zero::zero();
 
             // Only check transfers (not mint/burn)
             if from != zero_address && recipient != zero_address {
